@@ -1,4 +1,5 @@
 # Financial-Statement-Analysis
+<img width="1331" height="749" alt="image1" src="https://github.com/user-attachments/assets/6ed49902-bc20-4b87-84c4-dd452e07904b" />
 
 Extract structured financial data from 10-K PDF reports using OpenAI-compatible vision models. Automatically detects and analyzes all three core financial statements — balance sheet, income statement, and cash flow statement — then produces a consolidated cross-statement analysis.
 
@@ -71,3 +72,7 @@ python main.py
 ```
 
 Then open http://localhost:8000 in your browser. Upload PDFs and view extracted results in real-time.
+
+## Demo
+<img width="2535" height="1316" alt="image2" src="https://github.com/user-attachments/assets/74fd82ed-2bf0-4e65-b4b0-80f8e2f7b838" />
+<img width="2525" height="1328" alt="image3" src="https://github.com/user-attachments/assets/c1ec0e30-d3f0-4f5d-9a9b-57f6cc305c48" />
