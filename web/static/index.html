@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Financial Analysis Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+/* ── Layout ── */
+.app-header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
+.app-header h1 { font-size: 20px; font-weight: 600; }
+.app-header .subtitle { font-size: 13px; opacity: 0.7; }
+.container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+/* ── Upload Area ── */
+#upload-screen { display: flex; justify-content: center; align-items: center; min-height: 70vh; }
+.upload-box { background: #fff; border: 2px dashed #c0c4cc; border-radius: 16px; padding: 60px 80px; text-align: center; cursor: pointer; transition: all 0.2s; max-width: 520px; width: 100%; }
+.upload-box:hover, .upload-box.dragover { border-color: #4361ee; background: #f8f9ff; }
+.upload-box .icon { font-size: 48px; margin-bottom: 16px; }
+.upload-box h2 { font-size: 18px; margin-bottom: 8px; color: #1a1a2e; }
+.upload-box p { font-size: 13px; color: #6b7280; margin-bottom: 16px; }
+.upload-box input[type="file"] { display: none; }
+.upload-btn { background: #4361ee; color: #fff; border: none; padding: 10px 28px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.upload-btn:hover { background: #3a56d4; }
+.upload-error { color: #e74c3c; font-size: 13px; margin-top: 12px; display: none; }
+
+/* ── Sidebar Layout ── */
+.main-container { display: flex; min-height: calc(100vh - 68px); }
+
+#sidebar {
+  width: 250px;
+  min-width: 250px;
+  background: #fff;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: width 0.3s ease, min-width 0.3s ease;
+  overflow: hidden;
+}
+
+#sidebar.collapsed {
+  width: 40px;
+  min-width: 40px;
+}
+
+#sidebar.collapsed .sidebar-content {
+  display: none;
+}
+
+#sidebar.collapsed .toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* ── Sidebar Toggle Button ── */
+.sidebar-toggle {
+  position: absolute;
+  top: 12px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  background: #4361ee;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.sidebar-toggle:hover {
+  background: #3a56d4;
+}
+
+.toggle-icon {
+  transition: transform 0.3s ease;
+  display: inline-block;
+}
+
+/* ── Sidebar Content ── */
+.sidebar-content {
+  padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── Add New Button ── */
+.add-new-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: #4361ee;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: background 0.2s;
+}
+
+.add-new-btn:hover {
+  background: #3a56d4;
+}
+
+/* ── Analysis Item List ── */
+.analysis-item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #374151;
+  margin-bottom: 4px;
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analysis-item:hover {
+  background: #f3f4f6;
+}
+
+.analysis-item.selected {
+  background: #4361ee;
+  color: #fff;
+}
+
+.analysis-item .item-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.analysis-item .item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Rename Button ── */
+.analysis-item .rename-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.analysis-item:hover .rename-btn {
+  opacity: 0.7;
+}
+
+.analysis-item .rename-btn:hover {
+  opacity: 1;
+}
+
+.analysis-item.selected .rename-btn {
+  opacity: 0.7;
+}
+</style>
+</head>
+<body>
+<header class="app-header">
+  <div>
+    <h1>📊 Financial Analysis Dashboard</h1>
+    <div class="subtitle">Upload a 10-K PDF to analyze financial statements</div>
+  </div>
+  <div style="margin-left:auto;" id="header-file-info"></div>
+</header>
+
+<div class="main-container">
+  <aside id="sidebar">
+    <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">
+      <span class="toggle-icon">◀</span>
+    </button>
+    <div class="sidebar-content">
+      <button id="add-new-btn" class="add-new-btn">+ Add New</button>
+      <!-- Analysis list items will be rendered here -->
+    </div>
+  </aside>
+  <div class="container">
+    <!-- Upload Screen -->
+    <div id="upload-screen">
+      <div class="upload-box" id="drop-zone">
+        <div class="icon">📄</div>
+        <h2>Drop your 10-K PDF here</h2>
+        <p>or click to browse — PDF files only, max 50 MB</p>
+        <button class="upload-btn" onclick="document.getElementById('file-input').click()">Choose File</button>
+        <input type="file" id="file-input" accept=".pdf">
+        <div class="upload-error" id="upload-error"></div>
+      </div>
+    </div>
+
+    <!-- Dashboard Screen (hidden initially) -->
+    <div id="dashboard-screen" style="display:none;">
+      <!-- Tab Bar -->
+      <div class="tab-bar" id="tab-bar"></div>
+      <!-- Tab Content -->
+      <div id="tab-content"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── Tab Bar ── */
+.tab-bar { display: flex; gap: 4px; background: #fff; border-radius: 12px; padding: 4px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.tab-btn { flex: 1; padding: 12px 16px; border: none; background: transparent; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; color: #6b7280; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+.tab-btn:hover { background: #f3f4f6; }
+.tab-btn.active { background: #4361ee; color: #fff; }
+.tab-btn .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.badge-pending { background: #e5e7eb; color: #6b7280; }
+.badge-processing { background: #fef3c7; color: #d97706; animation: pulse 1.5s infinite; }
+.badge-completed { background: #d1fae5; color: #059669; }
+.badge-error { background: #fee2e2; color: #dc2626; }
+.tab-btn.active .badge-pending { background: rgba(255,255,255,0.3); color: #fff; }
+.tab-btn.active .badge-processing { background: rgba(255,255,255,0.3); color: #fff; }
+.tab-btn.active .badge-completed { background: rgba(255,255,255,0.3); color: #fff; }
+.tab-btn.active .badge-error { background: rgba(255,255,255,0.3); color: #fff; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+/* ── Dashboard Content ── */
+.dashboard-layout { display: flex; gap: 20px; }
+.dashboard-main { flex: 1; min-width: 0; }
+.pdf-panel { width: 420px; flex-shrink: 0; background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); max-height: 85vh; overflow-y: auto; }
+.pdf-panel img { width: 100%; border-radius: 8px; }
+.pdf-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.pdf-panel-header h3 { font-size: 14px; color: #374151; }
+.pdf-toggle { background: #f3f4f6; border: 1px solid #d1d5db; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; color: #374151; }
+.pdf-toggle:hover { background: #e5e7eb; }
+.pdf-toggle.active { background: #4361ee; color: #fff; border-color: #4361ee; }
+
+/* ── KPI Cards ── */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.kpi-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.kpi-card .label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.kpi-card .value { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+.kpi-card .trend { font-size: 13px; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+.trend-up { color: #059669; }
+.trend-down { color: #dc2626; }
+.trend-flat { color: #6b7280; }
+.trend-green { color: #059669; }
+.trend-red { color: #dc2626; }
+
+/* ── Validation Badge ── */
+.validation-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.validation-badge { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; }
+.badge-pass { background: #d1fae5; color: #059669; }
+.badge-fail { background: #fee2e2; color: #dc2626; }
+
+/* ── Health Gauges ── */
+.gauge-row { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.gauge-card { background: #fff; border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); min-width: 180px; }
+.gauge-card .gauge-label { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+.gauge-card .gauge-value { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.gauge-card .gauge-zone { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; display: inline-block; }
+.zone-strong { background: #d1fae5; color: #059669; }
+.zone-adequate { background: #fef3c7; color: #d97706; }
+.zone-concern { background: #fee2e2; color: #dc2626; }
+.zone-unknown { background: #e5e7eb; color: #6b7280; }
+
+/* ── Charts ── */
+.chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; margin-bottom: 20px; }
+.chart-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.chart-card h3 { font-size: 14px; color: #374151; margin-bottom: 12px; }
+.chart-card canvas { max-height: 300px; }
+
+/* ── Collapsible Detail Tables ── */
+.detail-section { background: #fff; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+.detail-header { padding: 14px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 14px; color: #374151; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+.detail-header:hover { background: #f3f4f6; }
+.detail-header .arrow { transition: transform 0.2s; }
+.detail-header.open .arrow { transform: rotate(90deg); }
+.detail-body { display: none; padding: 16px 20px; }
+.detail-body.open { display: block; }
+.detail-body table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.detail-body th { text-align: left; padding: 8px 12px; background: #f9fafb; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+.detail-body td { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }
+.detail-body td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.detail-body tr.total-row td { font-weight: 700; border-top: 2px solid #e5e7eb; }
+
+/* ── Error & Status ── */
+.error-banner { background: #fee2e2; color: #dc2626; padding: 12px 20px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
+.status-message { text-align: center; padding: 60px 20px; color: #6b7280; }
+.status-message .spinner { display: inline-block; width: 32px; height: 32px; border: 3px solid #e5e7eb; border-top-color: #4361ee; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Processing PDF Preview ── */
+.processing-pdf-preview {
+  margin-top: 20px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  display: inline-block;
+}
+
+/* ── YoY emphasis ── */
+.yoy-emphasis { background: #fef3c7; font-weight: 600; }
+</style>
+
+<script>
+// ── State ──
+let analysisId = null;
+let analysisData = null;
+let activeTab = 'balance_sheet';
+let pdfPanelOpen = {};
+let chartInstances = {};
+let pollingInterval = null;
+
+// ── Sidebar State ──
+let sidebarState = {
+  analyses: [],
+  selectedId: null,
+  selectedName: null,  // Store selected analysis name for header display
+  renamingId: null,
+  isLoading: false,
+  isCollapsed: false
+};
+
+// ── Sidebar Functions ──
+async function loadAnalyses() {
+  sidebarState.isLoading = true;
+  try {
+    const res = await fetch('/api/analyses');
+    if (!res.ok) {
+      console.error('Failed to load analyses:', res.status);
+      sidebarState.analyses = [];
+      return;
+    }
+    const data = await res.json();
+    sidebarState.analyses = data.analyses || [];
+  } catch (e) {
+    console.error('Error loading analyses:', e);
+    sidebarState.analyses = [];
+  } finally {
+    sidebarState.isLoading = false;
+  }
+}
+
+function renderSidebar() {
+  const content = document.querySelector('.sidebar-content');
+  if (!content) return;
+  
+  // Clear existing content
+  content.innerHTML = '';
+  
+  // Render "Add New" button
+  const addNewBtn = document.createElement('button');
+  addNewBtn.id = 'add-new-btn';
+  addNewBtn.className = 'add-new-btn';
+  addNewBtn.textContent = '+ Add New';
+  addNewBtn.addEventListener('click', showUploadScreen);
+  content.appendChild(addNewBtn);
+  
+  // Render analysis items
+  for (const analysis of sidebarState.analyses) {
+    const item = document.createElement('div');
+    item.className = 'analysis-item';
+    if (analysis.id === sidebarState.selectedId) {
+      item.classList.add('selected');
+    }
+    
+    // Check if this item is being renamed
+    if (sidebarState.renamingId === analysis.id) {
+      item.innerHTML = `
+        <span class="item-icon">📊</span>
+        <input type="text" class="rename-input" value="${analysis.display_name}" 
+               style="flex:1; padding:4px 8px; border:1px solid #4361ee; border-radius:4px; font-size:13px;"
+               onkeydown="handleRenameKeydown(event, '${analysis.id}')"
+               onblur="confirmRename('${analysis.id}', this.value)">
+      `;
+      // Focus the input after render
+      setTimeout(() => {
+        const input = item.querySelector('.rename-input');
+        if (input) { input.focus(); input.select(); }
+      }, 10);
+    } else {
+      item.innerHTML = `
+        <span class="item-icon">📊</span>
+        <span class="item-name">${analysis.display_name}</span>
+        <button class="rename-btn" onclick="event.stopPropagation(); startRename('${analysis.id}')" 
+                style="background:none; border:none; cursor:pointer; opacity:0.5; font-size:12px;"
+                title="Rename">✏️</button>
+      `;
+    }
+    
+    item.dataset.id = analysis.id;
+    // Add click handler to select this analysis
+    item.addEventListener('click', () => {
+      if (sidebarState.renamingId !== analysis.id) {
+        selectAnalysis(analysis.id);
+      }
+    });
+    content.appendChild(item);
+  }
+}
+
+// ── Rename Functions ──
+function startRename(id) {
+  sidebarState.renamingId = id;
+  renderSidebar();
+}
+
+function handleRenameKeydown(event, id) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    confirmRename(id, event.target.value);
+  } else if (event.key === 'Escape') {
+    sidebarState.renamingId = null;
+    renderSidebar();
+  }
+}
+
+async function confirmRename(id, newName) {
+  // Trim and validate
+  newName = newName.trim();
+  
+  // Find the analysis to get original name
+  const analysis = sidebarState.analyses.find(a => a.id === id);
+  if (!analysis) {
+    sidebarState.renamingId = null;
+    renderSidebar();
+    return;
+  }
+  
+  // If name unchanged, just cancel rename mode
+  if (newName === analysis.display_name) {
+    sidebarState.renamingId = null;
+    renderSidebar();
+    return;
+  }
+  
+  // Validate new name
+  if (!newName) {
+    sidebarState.renamingId = null;
+    renderSidebar();
+    return;
+  }
+  
+  try {
+    const res = await fetch('/api/analyses/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_id: id, new_name: newName })
+    });
+    
+    const data = await res.json();
+    
+    if (data.success) {
+      // Update local state with new ID and name
+      sidebarState.renamingId = null;
+      sidebarState.selectedId = data.new_id;
+      sidebarState.selectedName = newName;
+      
+      // Update localStorage with new ID
+      localStorage.setItem('selectedAnalysisId', data.new_id);
+      
+      // Update header if this was the selected analysis
+      if (analysis.id === sidebarState.selectedId || data.new_id === sidebarState.selectedId) {
+        document.getElementById('header-file-info').innerHTML =
+          `<span style="color:#94a3b8;font-size:13px;">📊 ${newName}</span>`;
+      }
+      
+      // Reload analyses to reflect the rename
+      await loadAnalyses();
+      renderSidebar();
+    } else {
+      // Show error and revert
+      console.error('Rename failed:', data.error);
+      // Could show a toast/error message here
+      sidebarState.renamingId = null;
+      renderSidebar();
+    }
+  } catch (e) {
+    console.error('Rename error:', e);
+    sidebarState.renamingId = null;
+    renderSidebar();
+  }
+}
+
+// ── Upload Screen Functions ──
+function showUploadScreen() {
+  // Clear selected analysis
+  sidebarState.selectedId = null;
+  sidebarState.selectedName = null;
+  localStorage.removeItem('selectedAnalysisId');
+  
+  // Show upload screen, hide dashboard
+  document.getElementById('upload-screen').style.display = 'flex';
+  document.getElementById('dashboard-screen').style.display = 'none';
+  
+  // Clear header
+  document.getElementById('header-file-info').innerHTML = '';
+  
+  // Update sidebar selection
+  renderSidebar();
+}
+
+function selectAnalysis(id) {
+  // Find the analysis to get its display name
+  const analysis = sidebarState.analyses.find(a => a.id === id);
+  if (!analysis) {
+    console.error('Analysis not found:', id);
+    return;
+  }
+  
+  // Set selected state
+  sidebarState.selectedId = id;
+  sidebarState.selectedName = analysis.display_name;
+  
+  // Persist selected ID to localStorage
+  localStorage.setItem('selectedAnalysisId', id);
+  
+  // Set analysisId to preload format for loading cached results
+  analysisId = 'preload-' + id;
+  
+  // Reset sidebar refresh flag when loading existing analysis
+  sidebarRefreshedOnComplete = false;
+  
+  // Update sidebar to show selected highlighting
+  renderSidebar();
+  
+  // Update header to show selected analysis name
+  document.getElementById('header-file-info').innerHTML =
+    `<span style="color:#94a3b8;font-size:13px;">📊 ${analysis.display_name}</span>`;
+  
+  // Switch to dashboard view
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('dashboard-screen').style.display = 'block';
+  
+  // Reset active tab to balance_sheet
+  activeTab = 'balance_sheet';
+  
+  // Clear any existing polling
+  if (pollingInterval) {
+    clearInterval(pollingInterval);
+    pollingInterval = null;
+  }
+  
+  // Reset analysis data before loading
+  analysisData = null;
+  
+  // Render tab bar (will show loading state)
+  renderTabBar();
+  
+  // Start polling to load the cached analysis
+  startPolling();
+}
+
+const TABS = [
+  { key: 'balance_sheet', label: 'Balance Sheet', icon: '📋' },
+  { key: 'income_statement', label: 'Income Statement', icon: '💰' },
+  { key: 'cash_flow', label: 'Cash Flow', icon: '💵' },
+  { key: 'consolidated', label: 'Consolidated', icon: '📊' },
+];
+
+// ── Formatting ──
+function fmt(v) {
+  if (v === null || v === undefined) return 'N/A';
+  return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtPct(v) {
+  if (v === null || v === undefined) return 'N/A';
+  return v.toFixed(2) + '%';
+}
+
+// ── Upload Logic ──
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const uploadError = document.getElementById('upload-error');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+function showUploadError(msg) { uploadError.textContent = msg; uploadError.style.display = 'block'; }
+function hideUploadError() { uploadError.style.display = 'none'; }
+
+async function handleFile(file) {
+  hideUploadError();
+  if (!file.name.toLowerCase().endsWith('.pdf')) { showUploadError('Only PDF files are accepted.'); return; }
+  if (file.size > 50 * 1024 * 1024) { showUploadError('File exceeds 50 MB limit.'); return; }
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: form });
+    if (!res.ok) { const d = await res.json(); showUploadError(d.detail || 'Upload failed'); return; }
+    const data = await res.json();
+    analysisId = data.analysis_id;
+    
+    // Extract pdf_stem from analysis_id (format: "pdf_stem-timestamp")
+    const pdfStem = data.analysis_id.split('-').slice(0, -1).join('-') || data.analysis_id;
+    sidebarState.selectedId = pdfStem;
+    sidebarState.selectedName = pdfStem;
+    localStorage.setItem('selectedAnalysisId', pdfStem);
+    
+    // Reset sidebar refresh flag for new upload
+    sidebarRefreshedOnComplete = false;
+    
+    document.getElementById('header-file-info').innerHTML =
+      `<span style="color:#94a3b8;font-size:13px;">📄 ${file.name}</span>`;
+    document.getElementById('upload-screen').style.display = 'none';
+    document.getElementById('dashboard-screen').style.display = 'block';
+    renderTabBar();
+    startPolling();
+    
+    // Refresh sidebar to include the new analysis
+    await loadAnalyses();
+    renderSidebar();
+  } catch (e) { showUploadError('Connection error. Is the server running?'); }
+}
+</script>
+
+<script>
+// ── Polling ──
+let sidebarRefreshedOnComplete = false;  // Flag to prevent duplicate refreshes
+
+function startPolling() {
+  pollOnce();
+  pollingInterval = setInterval(pollOnce, 2000);
+}
+
+async function pollOnce() {
+  try {
+    const res = await fetch(`/api/analysis/${analysisId}`);
+    if (!res.ok) return;
+    const newData = await res.json();
+    
+    // Check if data actually changed before re-rendering
+    const dataChanged = JSON.stringify(analysisData) !== JSON.stringify(newData);
+    analysisData = newData;
+    
+    renderTabBar();
+    if (dataChanged) {
+      renderActiveTab();
+    }
+    if (analysisData.status === 'completed') {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+      
+      // Bug 3 fix: Refresh sidebar when analysis completes (but only once)
+      if (!sidebarRefreshedOnComplete) {
+        sidebarRefreshedOnComplete = true;
+        await loadAnalyses();
+        renderSidebar();
+      }
+    }
+  } catch (e) { /* network error — keep polling */ }
+}
+
+// ── Tab Bar ──
+function renderTabBar() {
+  const bar = document.getElementById('tab-bar');
+  bar.innerHTML = TABS.map(t => {
+    const status = getTabStatus(t.key);
+    const stmt = analysisData?.statements?.[t.key];
+    const cached = stmt?.cached ? ' 📦' : '';  // Cache indicator
+    const cls = t.key === activeTab ? 'tab-btn active' : 'tab-btn';
+    return `<button class="${cls}" onclick="switchTab('${t.key}')">
+      ${t.icon} ${t.label} <span class="badge badge-${status}">${status}${cached}</span>
+    </button>`;
+  }).join('');
+}
+
+function getTabStatus(key) {
+  if (!analysisData) return 'pending';
+  if (key === 'consolidated') return analysisData.consolidated?.status || 'pending';
+  return analysisData.statements?.[key]?.status || 'pending';
+}
+
+function switchTab(key) { activeTab = key; renderTabBar(); renderActiveTab(); }
+
+// ── Trend Arrow Logic ──
+const FAVORABLE = {
+  total_assets: true, total_liabilities: false, total_shareholders_equity: true,
+  working_capital: true, total_revenue: true, gross_profit: true,
+  operating_income: true, net_income: true, net_cash_from_operations: true,
+  free_cash_flow: true, net_cash_from_investing: false, net_cash_from_financing: false,
+  return_on_assets: true, return_on_equity: true, ebitda: true,
+};
+
+function trendArrow(current, prior, key) {
+  if (current === null || current === undefined || prior === null || prior === undefined) return '';
+  const diff = current - prior;
+  if (diff === 0) return '<span class="trend trend-flat">→ 0.00%</span>';
+  const pct = prior !== 0 ? ((diff / Math.abs(prior)) * 100).toFixed(2) : '∞';
+  const dir = diff > 0 ? '↑' : '↓';
+  const favorable = FAVORABLE[key] !== undefined ? FAVORABLE[key] : true;
+  const good = (diff > 0 && favorable) || (diff < 0 && !favorable);
+  const cls = good ? 'trend-green' : 'trend-red';
+  return `<span class="trend ${cls}">${dir} ${pct}%</span>`;
+}
+
+// ── Health Gauge ──
+function healthZone(value, low, high, inverted) {
+  if (value === null || value === undefined) return 'unknown';
+  if (inverted) { return value < low ? 'strong' : value <= high ? 'adequate' : 'concern'; }
+  return value < low ? 'concern' : value <= high ? 'adequate' : 'strong';
+}
+
+function renderGauge(label, value, low, high, inverted, suffix) {
+  const zone = healthZone(value, low, high, inverted);
+  const display = value !== null && value !== undefined ? fmt(value) + (suffix || '') : 'N/A';
+  return `<div class="gauge-card">
+    <div class="gauge-label">${label}</div>
+    <div class="gauge-value">${display}</div>
+    <span class="gauge-zone zone-${zone}">${zone.toUpperCase()}</span>
+  </div>`;
+}
+
+// ── Validation Badge ──
+function renderValidation(label, isValid) {
+  const cls = isValid ? 'badge-pass' : 'badge-fail';
+  const icon = isValid ? '✓' : '✗';
+  return `<div class="validation-badge ${cls}">${icon} ${label}: ${isValid ? 'PASS' : 'FAIL'}</div>`;
+}
+</script>
+
+<script>
+// ── KPI Card ──
+function renderKPI(label, value, priorValue, key, suffix) {
+  const display = value !== null && value !== undefined ? fmt(value) + (suffix || '') : 'N/A';
+  const trend = priorValue !== undefined ? trendArrow(value, priorValue, key) : '';
+  return `<div class="kpi-card">
+    <div class="label">${label}</div>
+    <div class="value">${display}</div>
+    ${trend ? `<div class="trend">${trend}</div>` : ''}
+  </div>`;
+}
+
+// ── Collapsible Detail Section ──
+function renderDetailSection(title, tableHtml, id) {
+  return `<div class="detail-section">
+    <div class="detail-header" onclick="toggleDetail('${id}')">
+      <span>${title}</span><span class="arrow" id="arrow-${id}">▶</span>
+    </div>
+    <div class="detail-body" id="detail-${id}">${tableHtml}</div>
+  </div>`;
+}
+
+function toggleDetail(id) {
+  const body = document.getElementById('detail-' + id);
+  const arrow = document.getElementById('arrow-' + id);
+  const header = arrow.closest('.detail-header');
+  body.classList.toggle('open');
+  header.classList.toggle('open');
+}
+
+// ── PDF Panel Toggle ──
+function togglePdfPanel(key) {
+  pdfPanelOpen[key] = !pdfPanelOpen[key];
+  renderActiveTab();
+}
+
+// ── Main Tab Renderer ──
+function renderActiveTab() {
+  const content = document.getElementById('tab-content');
+  const status = getTabStatus(activeTab);
+
+  if (status === 'pending') {
+    content.innerHTML = `<div class="status-message"><p>⏳ Waiting to start...</p></div>`;
+    return;
+  }
+  if (status === 'processing') {
+    const stmt = analysisData?.statements?.[activeTab];
+    let processingHtml = `<div class="status-message"><div class="spinner"></div><p>Analyzing ${activeTab.replace('_', ' ')}...</p>`;
+    
+    // Show PDF page preview if page_num is available
+    if (stmt?.page_num !== null && stmt?.page_num !== undefined) {
+      processingHtml += `
+        <div class="processing-pdf-preview">
+          <img src="/api/analysis/${analysisId}/page/${activeTab}" 
+               alt="PDF Page ${stmt.page_num + 1}" 
+               style="max-width: 400px; border-radius: 8px; margin-top: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <p style="font-size: 12px; color: #6b7280; margin-top: 8px;">
+            📄 Page ${stmt.page_num + 1} — LLM extraction in progress...
+          </p>
+        </div>`;
+    }
+    
+    processingHtml += `</div>`;
+    content.innerHTML = processingHtml;
+    return;
+  }
+  if (status === 'error') {
+    const err = activeTab === 'consolidated' ? 'One or more statements failed' :
+      (analysisData.statements[activeTab]?.error || 'Extraction failed');
+    content.innerHTML = `<div class="error-banner">⚠ ${err}</div>`;
+    return;
+  }
+
+  // Completed — render dashboard
+  if (activeTab === 'consolidated') { renderConsolidated(content); }
+  else if (activeTab === 'balance_sheet') { renderBalanceSheet(content); }
+  else if (activeTab === 'income_statement') { renderIncomeStatement(content); }
+  else if (activeTab === 'cash_flow') { renderCashFlow(content); }
+}
+
+// ── Helper: get statement data ──
+function getStmt(key) {
+  const s = analysisData?.statements?.[key];
+  if (!s || !s.result) return null;
+  return s.result;
+}
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// BALANCE SHEET TAB
+// ══════════════════════════════════════════════════════════════
+function renderBalanceSheet(container) {
+  const d = getStmt('balance_sheet');
+  if (!d) return;
+  const cur = d.current_period;
+  const pri = d.prior_period;
+  const ind = d.indicators;
+  const showPanel = pdfPanelOpen['balance_sheet'];
+
+  let html = `<div class="dashboard-layout">
+    <div class="dashboard-main">`;
+
+  // PDF toggle
+  html += `<div style="margin-bottom:16px;text-align:right;">
+    <button class="pdf-toggle ${showPanel ? 'active' : ''}" onclick="togglePdfPanel('balance_sheet')">
+      ${showPanel ? '✕ Hide' : '📄 View'} Source PDF
+    </button></div>`;
+
+  // KPI Cards
+  html += `<div class="kpi-row">`;
+  html += renderKPI('Total Assets', cur.total_assets, pri?.total_assets, 'total_assets');
+  html += renderKPI('Total Liabilities', cur.total_liabilities, pri?.total_liabilities, 'total_liabilities');
+  html += renderKPI('Total Equity', cur.total_shareholders_equity, pri?.total_shareholders_equity, 'total_shareholders_equity');
+  html += renderKPI('Working Capital', ind.working_capital, undefined, 'working_capital');
+  html += `</div>`;
+
+  // Validation + Health Gauges
+  html += `<div class="validation-row">`;
+  html += renderValidation('Accounting Equation', ind.extraction_valid);
+  html += `</div>`;
+  html += `<div class="gauge-row">`;
+  html += renderGauge('Current Ratio', ind.current_ratio, 1.0, 2.0, false);
+  html += renderGauge('Debt-to-Equity', ind.debt_to_equity, 1.0, 2.0, true);
+  html += renderGauge('Quick Ratio', ind.quick_ratio, 0.5, 1.0, false);
+  html += `</div>`;
+
+  // Charts
+  html += `<div class="chart-row">
+    <div class="chart-card"><h3>Asset Composition</h3><canvas id="bs-asset-chart"></canvas></div>
+    <div class="chart-card"><h3>Balance Sheet Structure</h3><canvas id="bs-waterfall-chart"></canvas></div>
+  </div>`;
+
+  // Period comparison chart
+  if (pri) {
+    html += `<div class="chart-row">
+      <div class="chart-card"><h3>Period Comparison</h3><canvas id="bs-comparison-chart"></canvas></div>
+    </div>`;
+  }
+
+  // Detail tables
+  html += renderBSDetailTables(cur, pri, ind);
+  html += `</div>`; // close dashboard-main
+
+  // PDF Panel
+  if (showPanel) {
+    html += `<div class="pdf-panel">
+      <div class="pdf-panel-header"><h3>Source Document</h3></div>
+      <img src="/api/analysis/${analysisId}/page/balance_sheet" alt="Balance Sheet PDF page" loading="lazy">
+    </div>`;
+  }
+  html += `</div>`; // close dashboard-layout
+  container.innerHTML = html;
+
+  // Render charts after DOM update
+  setTimeout(() => {
+    renderAssetDonut(cur);
+    renderBSWaterfall(cur);
+    if (pri) renderBSComparison(cur, pri);
+  }, 50);
+}
+
+function renderBSDetailTables(cur, pri, ind) {
+  let html = '';
+  // Assets table
+  const assetRows = [
+    ['Cash & Equivalents', cur.cash_and_equivalents, false],
+    ['Accounts Receivable', cur.accounts_receivable, false],
+    ['Marketable Securities', cur.marketable_securities, false],
+    ['Inventory', cur.inventory, false],
+    ['Other Current Assets', cur.other_current_assets, false],
+    ['Total Current Assets', cur.total_current_assets, true],
+    ['PP&E (net)', cur.ppe, false],
+    ['Intangible Assets / Goodwill', cur.intangible_assets, false],
+    ['Other Non-Current Assets', cur.other_non_current_assets, false],
+    ['Total Assets', cur.total_assets, true],
+  ];
+  let tbl = '<table><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody>';
+  for (const [label, val, isTotal] of assetRows) {
+    if (!isTotal && val === 0) continue;
+    const cls = isTotal ? ' class="total-row"' : '';
+    tbl += `<tr${cls}><td>${label}</td><td>${fmt(val)}</td></tr>`;
+  }
+  tbl += '</tbody></table>';
+  html += renderDetailSection('Assets', tbl, 'bs-assets');
+
+  // Liabilities table
+  const liabRows = [
+    ['Accounts Payable', cur.accounts_payable, false],
+    ['Short-Term Debt', cur.short_term_debt, false],
+    ['Accrued Expenses', cur.accrued_expenses, false],
+    ['Total Current Liabilities', cur.total_current_liabilities, true],
+    ['Long-Term Debt', cur.long_term_debt, false],
+    ['Other Non-Current Liabilities', cur.other_non_current_liabilities, false],
+    ['Total Liabilities', cur.total_liabilities, true],
+  ];
+  tbl = '<table><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody>';
+  for (const [label, val, isTotal] of liabRows) {
+    if (!isTotal && val === 0) continue;
+    const cls = isTotal ? ' class="total-row"' : '';
+    tbl += `<tr${cls}><td>${label}</td><td>${fmt(val)}</td></tr>`;
+  }
+  tbl += '</tbody></table>';
+  html += renderDetailSection('Liabilities', tbl, 'bs-liabilities');
+
+  // Equity table
+  const eqRows = [
+    ['Common Stock', cur.common_stock, false],
+    ['Additional Paid-In Capital', cur.additional_paid_in_capital, false],
+    ['Retained Earnings', cur.retained_earnings, false],
+    ['Treasury Stock', cur.treasury_stock, false],
+    ['AOCI', cur.accumulated_other_comprehensive_income, false],
+    ['Total Equity', cur.total_shareholders_equity, true],
+  ];
+  tbl = '<table><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody>';
+  for (const [label, val, isTotal] of eqRows) {
+    if (!isTotal && val === 0) continue;
+    const cls = isTotal ? ' class="total-row"' : '';
+    tbl += `<tr${cls}><td>${label}</td><td>${fmt(val)}</td></tr>`;
+  }
+  tbl += '</tbody></table>';
+  html += renderDetailSection("Shareholders' Equity", tbl, 'bs-equity');
+
+  // Indicators table
+  tbl = '<table><thead><tr><th>Indicator</th><th>Value</th></tr></thead><tbody>';
+  const indRows = [
+    ['Current Ratio', ind.current_ratio], ['Quick Ratio', ind.quick_ratio],
+    ['Cash Ratio', ind.cash_ratio], ['Debt-to-Equity', ind.debt_to_equity],
+    ['Equity Ratio', ind.equity_ratio], ['Debt Ratio', ind.debt_ratio],
+    ['Working Capital', ind.working_capital], ['Net Debt', ind.net_debt],
+    ['Tangible Book Value', ind.tangible_book_value],
+  ];
+  for (const [label, val] of indRows) {
+    tbl += `<tr><td>${label}</td><td>${fmt(val)}</td></tr>`;
+  }
+  tbl += '</tbody></table>';
+  html += renderDetailSection('All Indicators', tbl, 'bs-indicators');
+  return html;
+}
+</script>
+
+<script>
+// ── Chart Helpers ──
+function destroyChart(id) { if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; } }
+
+function renderAssetDonut(cur) {
+  destroyChart('bs-asset-chart');
+  const el = document.getElementById('bs-asset-chart');
+  if (!el) return;
+  chartInstances['bs-asset-chart'] = new Chart(el, {
+    type: 'doughnut',
+    data: {
+      labels: ['Current Assets', 'Non-Current Assets'],
+      datasets: [{ data: [cur.total_current_assets, cur.total_assets - cur.total_current_assets],
+        backgroundColor: ['#4361ee', '#a5b4fc'], borderWidth: 0 }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+  });
+}
+
+function renderBSWaterfall(cur) {
+  destroyChart('bs-waterfall-chart');
+  const el = document.getElementById('bs-waterfall-chart');
+  if (!el) return;
+  chartInstances['bs-waterfall-chart'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: ['Total Assets', 'Total Liabilities', 'Total Equity'],
+      datasets: [{ data: [cur.total_assets, cur.total_liabilities, cur.total_shareholders_equity],
+        backgroundColor: ['#4361ee', '#ef4444', '#10b981'], borderRadius: 6 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } } }
+  });
+}
+
+function renderBSComparison(cur, pri) {
+  destroyChart('bs-comparison-chart');
+  const el = document.getElementById('bs-comparison-chart');
+  if (!el) return;
+  const labels = ['Total Assets', 'Total Liabilities', 'Total Equity', 'Current Assets', 'Current Liabilities'];
+  const curVals = [cur.total_assets, cur.total_liabilities, cur.total_shareholders_equity, cur.total_current_assets, cur.total_current_liabilities];
+  const priVals = [pri.total_assets, pri.total_liabilities, pri.total_shareholders_equity, pri.total_current_assets, pri.total_current_liabilities];
+  chartInstances['bs-comparison-chart'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: cur.period || 'Current', data: curVals, backgroundColor: '#4361ee', borderRadius: 4 },
+        { label: pri.period || 'Prior', data: priVals, backgroundColor: '#a5b4fc', borderRadius: 4 },
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// INCOME STATEMENT TAB
+// ══════════════════════════════════════════════════════════════
+function renderIncomeStatement(container) {
+  const d = getStmt('income_statement');
+  if (!d) return;
+  const cur = d.current_period;
+  const pri = d.prior_period;
+  const ind = d.indicators;
+  const showPanel = pdfPanelOpen['income_statement'];
+
+  let html = `<div class="dashboard-layout"><div class="dashboard-main">`;
+  html += `<div style="margin-bottom:16px;text-align:right;">
+    <button class="pdf-toggle ${showPanel ? 'active' : ''}" onclick="togglePdfPanel('income_statement')">
+      ${showPanel ? '✕ Hide' : '📄 View'} Source PDF
+    </button></div>`;
+
+  // KPI Cards
+  html += `<div class="kpi-row">`;
+  html += renderKPI('Total Revenue', cur.total_revenue, pri?.total_revenue, 'total_revenue');
+  html += renderKPI('Gross Profit', cur.gross_profit, pri?.gross_profit, 'gross_profit');
+  html += renderKPI('Operating Income', cur.operating_income, pri?.operating_income, 'operating_income');
+  html += renderKPI('Net Income', cur.net_income, pri?.net_income, 'net_income');
+  html += `</div>`;
+
+  // Validation + Gauges
+  html += `<div class="validation-row">`;
+  html += renderValidation('Gross Profit Check', ind.extraction_valid);
+  html += `</div>`;
+  html += `<div class="gauge-row">`;
+  html += renderGauge('Net Margin', ind.net_margin, 5, 15, false, '%');
+  html += renderGauge('Gross Margin', ind.gross_margin, 20, 40, false, '%');
+  html += renderGauge('Operating Margin', ind.operating_margin, 10, 25, false, '%');
+  html += `</div>`;
+
+  // Charts
+  html += `<div class="chart-row">
+    <div class="chart-card"><h3>Revenue Waterfall</h3><canvas id="is-waterfall-chart"></canvas></div>
+    <div class="chart-card"><h3>Margin Analysis</h3><canvas id="is-margin-chart"></canvas></div>
+  </div>`;
+  if (pri) {
+    html += `<div class="chart-row">
+      <div class="chart-card"><h3>Period Comparison</h3><canvas id="is-comparison-chart"></canvas></div>
+    </div>`;
+  }
+
+  // Detail tables
+  let tbl = '<table><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody>';
+  const rows = [
+    ['Total Revenue', cur.total_revenue, true], ['Cost of Revenue', cur.cost_of_revenue, false],
+    ['Gross Profit', cur.gross_profit, true], ['R&D', cur.research_and_development, false],
+    ['SG&A', cur.selling_general_admin, false], ['Total Operating Expenses', cur.total_operating_expenses, true],
+    ['Operating Income', cur.operating_income, true], ['Interest Income', cur.interest_income, false],
+    ['Interest Expense', cur.interest_expense, false], ['Income Before Tax', cur.income_before_tax, true],
+    ['Income Tax', cur.income_tax_expense, false], ['Net Income', cur.net_income, true],
+  ];
+  for (const [label, val, isTotal] of rows) {
+    if (!isTotal && val === 0) continue;
+    const cls = isTotal ? ' class="total-row"' : '';
+    tbl += `<tr${cls}><td>${label}</td><td>${fmt(val)}</td></tr>`;
+  }
+  tbl += '</tbody></table>';
+  html += renderDetailSection('Line Items', tbl, 'is-items');
+
+  html += `</div>`; // close main
+  if (showPanel) {
+    html += `<div class="pdf-panel"><div class="pdf-panel-header"><h3>Source Document</h3></div>
+      <img src="/api/analysis/${analysisId}/page/income_statement" alt="Income Statement PDF page" loading="lazy"></div>`;
+  }
+  html += `</div>`;
+  container.innerHTML = html;
+  setTimeout(() => { renderISWaterfall(cur); renderISMargins(ind); if (pri) renderISComparison(cur, pri); }, 50);
+}
+
+function renderISWaterfall(cur) {
+  destroyChart('is-waterfall-chart');
+  const el = document.getElementById('is-waterfall-chart');
+  if (!el) return;
+  chartInstances['is-waterfall-chart'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: ['Revenue', 'COGS', 'Gross Profit', 'OpEx', 'Op. Income', 'Net Income'],
+      datasets: [{ data: [cur.total_revenue, -cur.cost_of_revenue, cur.gross_profit,
+        -(cur.total_operating_expenses - cur.cost_of_revenue), cur.operating_income, cur.net_income],
+        backgroundColor: d => d.raw >= 0 ? '#10b981' : '#ef4444', borderRadius: 4 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+  });
+}
+
+function renderISMargins(ind) {
+  destroyChart('is-margin-chart');
+  const el = document.getElementById('is-margin-chart');
+  if (!el) return;
+  chartInstances['is-margin-chart'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: ['Gross Margin', 'Operating Margin', 'Net Margin'],
+      datasets: [{ data: [ind.gross_margin || 0, ind.operating_margin || 0, ind.net_margin || 0],
+        backgroundColor: ['#4361ee', '#8b5cf6', '#06b6d4'], borderRadius: 6 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => v + '%' } } } }
+  });
+}
+
+function renderISComparison(cur, pri) {
+  destroyChart('is-comparison-chart');
+  const el = document.getElementById('is-comparison-chart');
+  if (!el) return;
+  const labels = ['Revenue', 'Gross Profit', 'Op. Income', 'Net Income'];
+  chartInstances['is-comparison-chart'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: cur.period || 'Current', data: [cur.total_revenue, cur.gross_profit, cur.operating_income, cur.net_income], backgroundColor: '#4361ee', borderRadius: 4 },
+        { label: pri.period || 'Prior', data: [pri.total_revenue, pri.gross_profit, pri.operating_income, pri.net_income], backgroundColor: '#a5b4fc', borderRadius: 4 },
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// CASH FLOW TAB
+// ══════════════════════════════════════════════════════════════
+function renderCashFlow(container) {
+  const d = getStmt('cash_flow');
+  if (!d) return;
+  const cur = d.current_period;
+  const pri = d.prior_period;
+  const ind = d.indicators;
+  const showPanel = pdfPanelOpen['cash_flow'];
+
+  let html = `<div class="dashboard-layout"><div class="dashboard-main">`;
+  html += `<div style="margin-bottom:16px;text-align:right;">
+    <button class="pdf-toggle ${showPanel ? 'active' : ''}" onclick="togglePdfPanel('cash_flow')">
+      ${showPanel ? '✕ Hide' : '📄 View'} Source PDF
+    </button></div>`;
+
+  // KPI Cards
+  html += `<div class="kpi-row">`;
+  html += renderKPI('Operating Cash Flow', cur.net_cash_from_operations, pri?.net_cash_from_operations, 'net_cash_from_operations');
+  html += renderKPI('Free Cash Flow', ind.free_cash_flow, undefined, 'free_cash_flow');
+  html += renderKPI('Investing Cash Flow', cur.net_cash_from_investing, pri?.net_cash_from_investing, 'net_cash_from_investing');
+  html += renderKPI('Financing Cash Flow', cur.net_cash_from_financing, pri?.net_cash_from_financing, 'net_cash_from_financing');
+  html += `</div>`;
+
+  // Validation
+  html += `<div class="validation-row">`;
+  html += renderValidation('Cash Reconciliation', ind.extraction_valid);
+  html += `</div>`;
+
+  // Charts
+  html += `<div class="chart-row">
+    <div class="chart-card"><h3>Cash Flow Waterfall</h3><canvas id="cf-waterfall-chart"></canvas></div>
+    <div class="chart-card"><h3>Cash Flow Categories</h3><canvas id="cf-category-chart"></canvas></div>
+  </div>`;
+  if (pri) {
+    html += `<div class="chart-row">
+      <div class="chart-card"><h3>Period Comparison</h3><canvas id="cf-comparison-chart"></canvas></div>
+    </div>`;
+  }
+
+  // Detail tables
+  let tbl = '<table><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody>';
+  const opRows = [
+    ['Net Income', cur.net_income, false], ['Depreciation & Amortization', cur.depreciation_amortization, false],
+    ['Stock-Based Compensation', cur.stock_based_compensation, false],
+    ['Changes in Working Capital', cur.changes_in_working_capital, false],
+    ['Net Cash from Operations', cur.net_cash_from_operations, true],
+  ];
+  for (const [label, val, isTotal] of opRows) {
+    if (!isTotal && val === 0) continue;
+    const cls = isTotal ? ' class="total-row"' : '';
+    tbl += `<tr${cls}><td>${label}</td><td>${fmt(val)}</td></tr>`;
+  }
+  tbl += '</tbody></table>';
+  html += renderDetailSection('Operating Activities', tbl, 'cf-operating');
+
+  tbl = '<table><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody>';
+  const invRows = [
+    ['Capital Expenditures', cur.capital_expenditures, false], ['Acquisitions', cur.acquisitions, false],
+    ['Purchases of Investments', cur.purchases_of_investments, false],
+    ['Sales of Investments', cur.sales_of_investments, false],
+    ['Net Cash from Investing', cur.net_cash_from_investing, true],
+  ];
+  for (const [label, val, isTotal] of invRows) {
+    if (!isTotal && val === 0) continue;
+    const cls = isTotal ? ' class="total-row"' : '';
+    tbl += `<tr${cls}><td>${label}</td><td>${fmt(val)}</td></tr>`;
+  }
+  tbl += '</tbody></table>';
+  html += renderDetailSection('Investing Activities', tbl, 'cf-investing');
+
+  tbl = '<table><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody>';
+  const finRows = [
+    ['Debt Issued', cur.debt_issued, false], ['Debt Repaid', cur.debt_repaid, false],
+    ['Shares Repurchased', cur.shares_repurchased, false], ['Dividends Paid', cur.dividends_paid, false],
+    ['Net Cash from Financing', cur.net_cash_from_financing, true],
+  ];
+  for (const [label, val, isTotal] of finRows) {
+    if (!isTotal && val === 0) continue;
+    const cls = isTotal ? ' class="total-row"' : '';
+    tbl += `<tr${cls}><td>${label}</td><td>${fmt(val)}</td></tr>`;
+  }
+  tbl += '</tbody></table>';
+  html += renderDetailSection('Financing Activities', tbl, 'cf-financing');
+
+  // Indicators
+  tbl = '<table><thead><tr><th>Indicator</th><th>Value</th></tr></thead><tbody>';
+  tbl += `<tr><td>Free Cash Flow</td><td>${fmt(ind.free_cash_flow)}</td></tr>`;
+  tbl += `<tr><td>OCF / Net Income</td><td>${fmt(ind.operating_cash_flow_ratio)}</td></tr>`;
+  tbl += `<tr><td>CapEx to OCF</td><td>${fmt(ind.capex_to_ocf)}%</td></tr>`;
+  tbl += '</tbody></table>';
+  html += renderDetailSection('All Indicators', tbl, 'cf-indicators');
+
+  html += `</div>`; // close main
+  if (showPanel) {
+    html += `<div class="pdf-panel"><div class="pdf-panel-header"><h3>Source Document</h3></div>
+      <img src="/api/analysis/${analysisId}/page/cash_flow" alt="Cash Flow PDF page" loading="lazy"></div>`;
+  }
+  html += `</div>`;
+  container.innerHTML = html;
+  setTimeout(() => { renderCFWaterfall(cur); renderCFCategories(cur); if (pri) renderCFComparison(cur, pri); }, 50);
+}
+
+function renderCFWaterfall(cur) {
+  destroyChart('cf-waterfall-chart');
+  const el = document.getElementById('cf-waterfall-chart');
+  if (!el) return;
+  chartInstances['cf-waterfall-chart'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: ['Operating', 'Investing', 'Financing', 'Net Change'],
+      datasets: [{ data: [cur.net_cash_from_operations, cur.net_cash_from_investing, cur.net_cash_from_financing, cur.net_change_in_cash],
+        backgroundColor: d => d.raw >= 0 ? '#10b981' : '#ef4444', borderRadius: 4 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+  });
+}
+
+function renderCFCategories(cur) {
+  destroyChart('cf-category-chart');
+  const el = document.getElementById('cf-category-chart');
+  if (!el) return;
+  chartInstances['cf-category-chart'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: ['Operating', 'Investing', 'Financing'],
+      datasets: [{ data: [cur.net_cash_from_operations, cur.net_cash_from_investing, cur.net_cash_from_financing],
+        backgroundColor: ['#4361ee', '#f59e0b', '#8b5cf6'], borderRadius: 6 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+  });
+}
+
+function renderCFComparison(cur, pri) {
+  destroyChart('cf-comparison-chart');
+  const el = document.getElementById('cf-comparison-chart');
+  if (!el) return;
+  chartInstances['cf-comparison-chart'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: ['Operating', 'Investing', 'Financing', 'Net Change'],
+      datasets: [
+        { label: cur.period || 'Current', data: [cur.net_cash_from_operations, cur.net_cash_from_investing, cur.net_cash_from_financing, cur.net_change_in_cash], backgroundColor: '#4361ee', borderRadius: 4 },
+        { label: pri.period || 'Prior', data: [pri.net_cash_from_operations, pri.net_cash_from_investing, pri.net_cash_from_financing, pri.net_change_in_cash], backgroundColor: '#a5b4fc', borderRadius: 4 },
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: false } } }
+  });
+}
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// CONSOLIDATED TAB
+// ══════════════════════════════════════════════════════════════
+function renderConsolidated(container) {
+  const consolidated = analysisData?.consolidated;
+  if (!consolidated || !consolidated.result) return;
+  const r = consolidated.result;
+  const cross = r.cross_statement_indicators;
+
+  let html = `<div class="dashboard-main">`;
+
+  // KPI Cards
+  if (cross) {
+    html += `<div class="kpi-row">`;
+    html += renderKPI('Return on Assets', cross.return_on_assets, undefined, 'return_on_assets', '%');
+    html += renderKPI('Return on Equity', cross.return_on_equity, undefined, 'return_on_equity', '%');
+    html += renderKPI('EBITDA', cross.ebitda, undefined, 'ebitda');
+    html += renderKPI('Free Cash Flow', cross.free_cash_flow, undefined, 'free_cash_flow');
+    html += `</div>`;
+  }
+
+  // Charts
+  html += `<div class="chart-row">`;
+  if (cross) {
+    html += `<div class="chart-card"><h3>Key Ratios</h3><canvas id="con-radar-chart"></canvas></div>`;
+  }
+  html += `<div class="chart-card"><h3>Cross-Statement Overview</h3><canvas id="con-bar-chart"></canvas></div>`;
+  html += `</div>`;
+
+  // Cross-statement indicators detail
+  if (cross) {
+    let tbl = '<table><thead><tr><th>Indicator</th><th>Value</th><th>Interpretation</th></tr></thead><tbody>';
+    const rows = [
+      ['Return on Assets (ROA)', cross.return_on_assets, '%', 'Net Income / Total Assets'],
+      ['Return on Equity (ROE)', cross.return_on_equity, '%', 'Net Income / Total Equity'],
+      ['Asset Turnover', cross.asset_turnover, '', 'Revenue / Total Assets'],
+      ['EBITDA', cross.ebitda, '', 'Operating Income + D&A'],
+      ['Debt-to-EBITDA', cross.debt_to_ebitda, '', 'Total Debt / EBITDA'],
+      ['Free Cash Flow', cross.free_cash_flow, '', 'OCF − CapEx'],
+      ['FCF Yield', cross.fcf_yield, '%', 'FCF / Total Equity'],
+      ['OCF-to-Debt', cross.ocf_to_debt, '', 'Operating CF / Total Debt'],
+      ['CF Interest Coverage', cross.cf_interest_coverage, '', 'OCF / Interest Expense'],
+    ];
+    for (const [label, val, suffix, interp] of rows) {
+      tbl += `<tr><td>${label}</td><td>${fmt(val)}${suffix}</td><td>${interp}</td></tr>`;
+    }
+    tbl += '</tbody></table>';
+    html += renderDetailSection('Cross-Statement Indicators', tbl, 'con-indicators');
+  }
+
+  // Individual statement summaries
+  for (const key of ['balance_sheet', 'income_statement', 'cash_flow']) {
+    const stmtData = r[key];
+    if (!stmtData) continue;
+    const label = key.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+    let tbl = '<table><thead><tr><th>Indicator</th><th>Value</th></tr></thead><tbody>';
+    for (const [k, v] of Object.entries(stmtData.indicators || {})) {
+      const display = typeof v === 'boolean' ? (v ? '✓ PASS' : '✗ FAIL') : fmt(v);
+      tbl += `<tr><td>${k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</td><td>${display}</td></tr>`;
+    }
+    tbl += '</tbody></table>';
+    html += renderDetailSection(`${label} Indicators`, tbl, `con-${key}`);
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+
+  setTimeout(() => {
+    if (cross) renderConRadar(cross, r);
+    renderConBar(r);
+  }, 50);
+}
+
+function renderConRadar(cross, r) {
+  destroyChart('con-radar-chart');
+  const el = document.getElementById('con-radar-chart');
+  if (!el) return;
+  // Normalize ratios to 0-100 scale for radar
+  const bsInd = r.balance_sheet?.indicators || {};
+  const isInd = r.income_statement?.indicators || {};
+  const labels = ['ROA', 'ROE', 'Gross Margin', 'Op. Margin', 'Net Margin', 'Asset Turnover'];
+  const values = [
+    Math.min(Math.max(cross.return_on_assets || 0, 0), 50),
+    Math.min(Math.max(cross.return_on_equity || 0, 0), 50),
+    Math.min(Math.max(isInd.gross_margin || 0, 0), 100),
+    Math.min(Math.max(isInd.operating_margin || 0, 0), 50),
+    Math.min(Math.max(isInd.net_margin || 0, 0), 50),
+    Math.min(Math.max((cross.asset_turnover || 0) * 20, 0), 50),
+  ];
+  chartInstances['con-radar-chart'] = new Chart(el, {
+    type: 'radar',
+    data: {
+      labels,
+      datasets: [{ label: 'Financial Profile', data: values, backgroundColor: 'rgba(67,97,238,0.2)',
+        borderColor: '#4361ee', pointBackgroundColor: '#4361ee', borderWidth: 2 }]
+    },
+    options: { responsive: true, scales: { r: { beginAtZero: true, suggestedMax: 50 } },
+      plugins: { legend: { display: false } } }
+  });
+}
+
+function renderConBar(r) {
+  destroyChart('con-bar-chart');
+  const el = document.getElementById('con-bar-chart');
+  if (!el) return;
+  const bs = r.balance_sheet?.current_period;
+  const is = r.income_statement?.current_period;
+  const cf = r.cash_flow?.current_period;
+  if (!bs || !is || !cf) return;
+  chartInstances['con-bar-chart'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: ['Total Assets', 'Revenue', 'Net Income', 'Operating CF', 'Total Equity'],
+      datasets: [{ data: [bs.total_assets, is.total_revenue, is.net_income, cf.net_cash_from_operations, bs.total_shareholders_equity],
+        backgroundColor: ['#4361ee', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'], borderRadius: 6 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// SIDEBAR INITIALIZATION
+// ══════════════════════════════════════════════════════════════
+
+// ── LocalStorage Persistence Functions ──
+function restoreSelectedFromStorage() {
+  const storedId = localStorage.getItem('selectedAnalysisId');
+  if (!storedId) return null;
+  
+  // Check if the stored analysis exists in our list
+  const exists = sidebarState.analyses.some(a => a.id === storedId);
+  if (!exists) {
+    // Clear stale reference
+    localStorage.removeItem('selectedAnalysisId');
+    return null;
+  }
+  
+  return storedId;
+}
+
+function restoreSidebarStateFromStorage() {
+  const stored = localStorage.getItem('sidebarCollapsed');
+  if (stored === 'true') {
+    sidebarState.isCollapsed = true;
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) sidebar.classList.add('collapsed');
+  }
+}
+
+// ── Sidebar Toggle Functionality ──
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  
+  sidebarState.isCollapsed = !sidebarState.isCollapsed;
+  
+  if (sidebarState.isCollapsed) {
+    sidebar.classList.add('collapsed');
+  } else {
+    sidebar.classList.remove('collapsed');
+  }
+  
+  // Persist collapsed state to localStorage
+  localStorage.setItem('sidebarCollapsed', String(sidebarState.isCollapsed));
+}
+
+async function initSidebar() {
+  // Restore sidebar collapsed state first
+  restoreSidebarStateFromStorage();
+  
+  // Load analyses
+  await loadAnalyses();
+  renderSidebar();
+  
+  // Restore selected analysis from localStorage
+  const storedId = restoreSelectedFromStorage();
+  if (storedId) {
+    selectAnalysis(storedId);
+  }
+  
+  // Wire up sidebar toggle button
+  const toggleBtn = document.getElementById('sidebar-toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', toggleSidebar);
+  }
+}
+
+// Initialize sidebar on page load
+initSidebar();
+</script>
+</body>
+</html>
