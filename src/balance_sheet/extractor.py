@@ -112,9 +112,9 @@ IMPORTANT:
 
 def extract_from_image(
     img: Image.Image,
-    model_name: str = "qwen3-vl:latest",
-    base_url: str = "http://localhost:11434/v1/",
-    api_key: str = "EMPTY",
+    model_name: str,
+    base_url: str,
+    api_key: str,
     verbose: bool = False,
 ) -> BalanceSheetData:
     """Send a single balance sheet image to a vision model and parse the response."""
@@ -146,9 +146,9 @@ def extract_from_image(
 
 def extract_multi_period_from_image(
     img: Image.Image,
-    model_name: str = "qwen3-vl:latest",
-    base_url: str = "http://localhost:11434/v1/",
-    api_key: str = "EMPTY",
+    model_name: str,
+    base_url: str,
+    api_key: str,
     verbose: bool = False,
 ) -> MultiPeriodResult:
     """Send a balance sheet image to a vision model and extract both periods."""
@@ -185,9 +185,9 @@ def extract_multi_period_from_image(
 
 def extract_from_pdf(
     pdf_path: str,
-    model_name: str = "qwen3-vl:latest",
-    base_url: str = "http://localhost:11434/v1/",
-    api_key: str = "EMPTY",
+    model_name: str,
+    base_url: str,
+    api_key: str,
     pages: list[int] | None = None,
     verbose: bool = False,
 ) -> list[BalanceSheetData]:

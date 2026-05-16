@@ -1,8 +1,9 @@
 # Financial-Statement-Analysis
+![Banner](/asset/image1.png)
 
-Extract structured financial data from 10-K PDF reports using OpenAI-compatible vision models. Automatically detects and analyzes all three core financial statements — balance sheet, income statement, and cash flow statement — then produces a consolidated cross-statement analysis.
+Extract structured financial data from 10-K PDF reports using vision LLM. Automatically detects and analyzes all three core financial statements — balance sheet, income statement, and cash flow statement — then produces a consolidated cross-statement analysis.
 
-Works with any OpenAI-compatible endpoint: Ollama, OpenAI, Together, Groq, LM Studio, vLLM, etc.
+Works with any OpenAI-compatible endpoint: Ollama, OpenAI, OpenRouter, Groq, LM Studio, vLLM, etc.
 
 ## Key Features
 
@@ -24,50 +25,59 @@ For each PDF, the tool:
 ## Setup
 
 ```bash
-conda create -n fin python=3.12
-conda activate fin
+conda create -n <your-env-name> python=3.12
+conda activate <your-env-name>
 pip install -r requirements.txt
 ```
 
-### Ollama (Local)
+Copy the example environment file and configure it:
 
-1. Install Ollama: https://ollama.com
-2. Pull a vision model:
-   ```bash
-   ollama pull qwen3.5:latest
-   ```
-3. Verify connectivity:
-   ```bash
-   python -m tests.test_connection
-   ```
+```bash
+cp .env.example .env
+```
 
-## Configuration
+Edit `.env` with your settings. Examples:
 
-Edit `.env` at the project root:
+**OpenAI:**
+```env
+MODEL=gpt-5.5
+BASE_URL=https://api.openai.com/v1
+API_KEY=sk-your-openai-api-key
+```
 
+**Ollama (Local):**
 ```env
 MODEL=qwen3.5:latest
 BASE_URL=http://localhost:11434/v1/
 API_KEY=EMPTY
 ```
 
-OpenAI example:
-```env
-MODEL=gpt-5.5
-BASE_URL=https://api.openai.com/v1
-API_KEY=sk-...
-```
-
 Environment variables (`MODEL`, `BASE_URL`, `API_KEY`) override `.env` values.
+
+## Demo
+![Analysis Results](/asset/image2.png)
+![Report Output](/asset/image3.png)
 
 ## Usage
 
-### Web Dashboard
+### Web Dashboard (for humans)
 
-Start the web server for an interactive UI:
+Interactive UI for uploading PDFs and viewing results in real-time:
 
 ```bash
 python main.py
 ```
 
-Then open http://localhost:8000 in your browser. Upload PDFs and view extracted results in real-time.
+Open http://localhost:8000 in your browser.
+
+### CLI (for agents/automation)
+
+Process PDFs programmatically:
+
+```bash
+# Process all PDFs in data/
+python main.py --cli
+
+# Process specific PDF
+python main.py data/amz-10k.pdf
+```

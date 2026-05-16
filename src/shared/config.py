@@ -43,7 +43,7 @@ def load_config(env_path: Path | None = None) -> Config:
             values[key] = env_val
 
     return Config(
-        model=values.get("MODEL", "qwen3-vl:latest"),
-        base_url=values.get("BASE_URL", "http://localhost:11434/v1/"),
-        api_key=values.get("API_KEY", "EMPTY"),
+        model=values["MODEL"],
+        base_url=values["BASE_URL"],
+        api_key=values["API_KEY"],
     )

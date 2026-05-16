@@ -50,9 +50,9 @@ IMPORTANT:
 
 def extract_income_statement_from_image(
     img: Image.Image,
-    model_name: str = "qwen3-vl:latest",
-    base_url: str = "http://localhost:11434/v1/",
-    api_key: str = "EMPTY",
+    model_name: str,
+    base_url: str,
+    api_key: str,
     verbose: bool = False,
 ) -> IncomeStatementMultiPeriod:
     client = OpenAI(base_url=base_url, api_key=api_key)
